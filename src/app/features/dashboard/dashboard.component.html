@@ -1,0 +1,130 @@
+<div class="page">
+  <div class="page-header">
+    <div>
+      <h1>Hi {{ firstName() }} 👋</h1>
+      <p>{{ scopeText() }}</p>
+    </div>
+    <a class="btn btn-primary" routerLink="/tasks" [queryParams]="viewTasksParams()">
+      <app-icon name="tasks" /> View tasks
+    </a>
+  </div>
+
+  <section class="card" aria-label="Dashboard filters" style="margin-bottom:16px">
+    <app-task-filters [teams]="teams()" (changed)="onFilter($event)" />
+  </section>
+
+  @if (summary(); as s) {
+    <div class="stat-grid" [class.dim]="loading()">
+      <div class="card stat"><span class="stat-label"><app-icon name="tasks" [size]="15" /> Total</span><span class="stat-value">{{ s.total }}</span></div>
+      <div class="card stat"><span class="stat-label"><i class="sw seg-todo"></i> To Do</span><span class="stat-value">{{ s.toDo }}</span></div>
+      <div class="card stat"><span class="stat-label"><i class="sw seg-progress"></i> In Progress</span><span class="stat-value">{{ s.inProgress }}</span></div>
+      <div class="card stat"><span class="stat-label"><i class="sw seg-done"></i> Done</span><span class="stat-value">{{ s.done }}</span></div>
+      <div class="card stat"><span class="stat-label"><app-icon name="alert" [size]="15" /> Overdue</span><span class="stat-value" [class.text-danger]="s.overdue > 0">{{ s.overdue }}</span></div>
+      <div class="card stat"><span class="stat-label"><app-icon name="check" [size]="15" /> Completion</span><span class="stat-value">{{ s.completionRate | number: '1.0-1' }}%</span></div>
+    </div>
+
+    <div class="grid dash-grid" [class.dim]="loading()">
+      <section class="card user-card" aria-labelledby="per-user-title">
+        <div class="card-header">
+          <h2 id="per-user-title">Task status per user</h2>
+          <div class="legend" aria-hidden="true">
+            <span><i class="seg-todo"></i>To Do</span>
+            <span><i class="seg-progress"></i>In Progress</span>
+            <span><i class="seg-done"></i>Done</span>
+          </div>
+        </div>
+        @if (s.byUser.length) {
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th scope="col">User</th>
+                  <th scope="col" class="hide-sm">Progress</th>
+                  <th scope="col" class="num">To Do</th>
+                  <th scope="col" class="num">In Prog.</th>
+                  <th scope="col" class="num">Done</th>
+                  <th scope="col" class="num">Overdue</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (u of s.byUser; track u.userId) {
+                  <tr [class.clickable]="u.userId !== null && auth.canManageTasks()" (click)="openUser(u)">
+                    <td>
+                      <span class="row">
+                        <app-avatar [name]="u.userId === null ? '?' : u.userName" [small]="true" />
+                        <span class="truncate" [class.muted]="u.userId === null">{{ u.userName }}</span>
+                      </span>
+                    </td>
+                    <td class="hide-sm">
+                      <div class="progress" [attr.aria-label]="u.done + ' of ' + u.total + ' done'">
+                        <span class="seg-todo" [style.width.%]="pct(u.toDo, u.total)"></span>
+                        <span class="seg-progress" [style.width.%]="pct(u.inProgress, u.total)"></span>
+                        <span class="seg-done" [style.width.%]="pct(u.done, u.total)"></span>
+                      </div>
+                    </td>
+                    <td class="num">{{ u.toDo }}</td>
+                    <td class="num">{{ u.inProgress }}</td>
+                    <td class="num">{{ u.done }}</td>
+                    <td class="num">
+                      @if (u.overdue > 0) { <span class="badge badge-overdue">{{ u.overdue }}</span> } @else { <span class="muted">0</span> }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <div class="empty"><h3>No tasks match</h3><p>Try clearing the filters.</p></div>
+        }
+      </section>
+
+      <div class="stack">
+        <section class="card card-body" aria-labelledby="overall-title">
+          <h2 id="overall-title" style="margin-bottom:12px">Overall status</h2>
+          <div class="progress progress-lg" [attr.aria-label]="s.done + ' of ' + s.total + ' tasks done'">
+            <span class="seg-todo" [style.width.%]="pct(s.toDo, s.total)"></span>
+            <span class="seg-progress" [style.width.%]="pct(s.inProgress, s.total)"></span>
+            <span class="seg-done" [style.width.%]="pct(s.done, s.total)"></span>
+          </div>
+          <p class="muted small" style="margin-top:8px">{{ s.dueThisWeek }} open task(s) due in the next 7 days.</p>
+        </section>
+
+        <section class="card card-body" aria-labelledby="priority-title">
+          <h2 id="priority-title" style="margin-bottom:12px">By priority</h2>
+          <ul class="bars">
+            @for (p of s.byPriority; track p.priority) {
+              <li>
+                <app-priority-badge [priority]="p.priority" />
+                <div class="bar"><span [class]="'fill priority-' + p.priority" [style.width.%]="pct(p.count, maxPriority())"></span></div>
+                <strong>{{ p.count }}</strong>
+              </li>
+            }
+          </ul>
+        </section>
+      </div>
+    </div>
+
+    <section class="card" aria-labelledby="upcoming-title" style="margin-top:16px">
+      <div class="card-header">
+        <h2 id="upcoming-title">Upcoming deadlines</h2>
+        <span class="muted small">Next 7 days</span>
+      </div>
+      @for (t of s.upcomingDeadlines; track t.id) {
+        <a class="upcoming" [routerLink]="['/tasks', t.id]">
+          <span class="stack-tight">
+            <strong class="truncate">{{ t.title }}</strong>
+            <span class="muted small">{{ t.assignedToName ?? 'Unassigned' }}{{ t.teamName ? ' · ' + t.teamName : '' }}</span>
+          </span>
+          <span class="row row-wrap end">
+            <app-status-badge [status]="t.status" />
+            <span class="badge"><app-icon name="calendar" [size]="12" />{{ t.dueDate | date: 'EEE, MMM d' : 'UTC' }}</span>
+          </span>
+        </a>
+      } @empty {
+        <p class="empty small">Nothing due in the next week.</p>
+      }
+    </section>
+  } @else if (loading()) {
+    <div class="spinner" role="status" aria-label="Loading dashboard"></div>
+  }
+</div>

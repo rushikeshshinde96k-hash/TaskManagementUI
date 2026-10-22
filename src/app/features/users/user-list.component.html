@@ -1,0 +1,115 @@
+<div class="page">
+  <div class="page-header">
+    <div>
+      <h1>Users</h1>
+      <p>Manage accounts, roles and access.</p>
+    </div>
+    <button type="button" class="btn btn-primary" (click)="openCreate()"><app-icon name="plus" /> New user</button>
+  </div>
+
+  <section class="card" aria-label="User filters" style="margin-bottom:12px">
+    <div class="toolbar">
+      <div class="input-icon">
+        <app-icon name="search" [size]="16" />
+        <input class="input" placeholder="Search name or email" aria-label="Search users" [value]="search()" (input)="onSearch($any($event.target).value)" />
+      </div>
+      <select class="select" aria-label="Filter by role" [ngModel]="roleFilter()" (ngModelChange)="roleFilter.set($event); load()">
+        <option [ngValue]="null">All roles</option>
+        @for (r of roles; track r) { <option [ngValue]="r">{{ r }}</option> }
+      </select>
+      <select class="select" aria-label="Filter by status" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event); load()">
+        <option [ngValue]="null">All statuses</option>
+        <option [ngValue]="true">Active</option>
+        <option [ngValue]="false">Inactive</option>
+      </select>
+    </div>
+  </section>
+
+  <section class="card">
+    @if (loading() && users().length === 0) {
+      <div class="spinner" role="status" aria-label="Loading users"></div>
+    } @else if (users().length) {
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th scope="col">User</th>
+              <th scope="col">Role</th>
+              <th scope="col" class="hide-sm">Teams</th>
+              <th scope="col" class="hide-sm">Last login</th>
+              <th scope="col">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (u of users(); track u.id) {
+              <tr [class.inactive]="!u.isActive">
+                <td>
+                  <span class="row">
+                    <app-avatar [name]="u.fullName" [small]="true" />
+                    <span style="display:flex;flex-direction:column;min-width:0">
+                      <strong class="truncate">{{ u.fullName }}{{ u.id === auth.user()?.id ? ' (you)' : '' }}</strong>
+                      <span class="small muted truncate">{{ u.email }}</span>
+                    </span>
+                  </span>
+                </td>
+                <td>
+                  <select class="select role-select" [ngModel]="u.role" (ngModelChange)="changeRole(u, $event)"
+                          [disabled]="u.id === auth.user()?.id" [attr.aria-label]="'Role of ' + u.fullName">
+                    @for (r of roles; track r) { <option [ngValue]="r">{{ r }}</option> }
+                  </select>
+                </td>
+                <td class="hide-sm">
+                  <span class="teams">
+                    @for (t of u.teams; track t.teamId) { <span class="badge">{{ t.teamName }}</span> }
+                    @empty { <span class="muted">—</span> }
+                  </span>
+                </td>
+                <td class="hide-sm muted">{{ u.lastLoginAt ? (u.lastLoginAt | date: 'MMM d, h:mm a') : 'Never' }}</td>
+                <td>
+                  <button type="button" class="btn btn-sm" [disabled]="u.id === auth.user()?.id" (click)="toggleActive(u)">
+                    {{ u.isActive ? 'Deactivate' : 'Activate' }}
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <div class="empty"><h3>No users match</h3></div>
+    }
+  </section>
+</div>
+
+@if (creating()) {
+  <app-modal title="New user" (closed)="creating.set(false)">
+    @if (createError()) { <div class="alert alert-error" role="alert" style="margin-bottom:14px">{{ createError() }}</div> }
+    <form class="form" [formGroup]="form" (ngSubmit)="create()" novalidate>
+      <div class="field">
+        <label for="u-name">Full name</label>
+        <input id="u-name" class="input" formControlName="fullName" [class.invalid]="touchedInvalid('fullName')" />
+        @if (touchedInvalid('fullName')) { <span class="field-error">Name is required.</span> }
+      </div>
+      <div class="field">
+        <label for="u-email">Email</label>
+        <input id="u-email" class="input" type="email" formControlName="email" [class.invalid]="touchedInvalid('email')" />
+        @if (touchedInvalid('email')) { <span class="field-error">Enter a valid email.</span> }
+      </div>
+      <div class="field">
+        <label for="u-pass">Temporary password</label>
+        <input id="u-pass" class="input" type="password" formControlName="password" autocomplete="new-password" [class.invalid]="touchedInvalid('password')" />
+        <span class="hint" [class.field-error]="touchedInvalid('password')">8+ characters with upper, lower, number and symbol.</span>
+      </div>
+      <div class="field">
+        <label for="u-role">Role</label>
+        <select id="u-role" class="select" formControlName="role">
+          @for (r of roles; track r) { <option [ngValue]="r">{{ r }}</option> }
+        </select>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" (click)="creating.set(false)">Cancel</button>
+        <button type="submit" class="btn btn-primary" [disabled]="saving()">{{ saving() ? 'Creating…' : 'Create user' }}</button>
+      </div>
+    </form>
+  </app-modal>
+}

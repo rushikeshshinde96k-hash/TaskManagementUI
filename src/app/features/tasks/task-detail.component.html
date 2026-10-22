@@ -1,0 +1,124 @@
+<div class="page">
+  <a routerLink="/tasks" class="back"><app-icon name="arrowLeft" [size]="16" /> Back to tasks</a>
+
+  @if (task(); as t) {
+    <div class="detail-grid">
+      <div class="stack">
+        <section class="card card-body">
+          <div class="row row-wrap" style="margin-bottom:10px">
+            <app-status-badge [status]="t.status" />
+            <app-priority-badge [priority]="t.priority" />
+            @if (t.isOverdue) { <span class="badge badge-overdue"><app-icon name="alert" [size]="12" /> Overdue</span> }
+          </div>
+          <div class="title-row">
+            <h1>{{ t.title }}</h1>
+            @if (canManage()) {
+              <div class="row">
+                <button type="button" class="btn btn-sm" (click)="editing.set(true)"><app-icon name="edit" [size]="15" /> Edit</button>
+                <button type="button" class="icon-btn danger" (click)="remove()" aria-label="Delete task"><app-icon name="trash" /></button>
+              </div>
+            }
+          </div>
+          @if (t.description) {
+            <p class="description">{{ t.description }}</p>
+          } @else {
+            <p class="muted">No description.</p>
+          }
+
+          @if (canStatus()) {
+            <div class="status-control">
+              <span class="label" id="status-label">Status</span>
+              <div class="segmented" role="group" aria-labelledby="status-label">
+                @for (s of statuses; track s.value) {
+                  <button type="button" [attr.aria-pressed]="t.status === s.value" (click)="setStatus(s.value)">{{ s.label }}</button>
+                }
+              </div>
+            </div>
+          }
+        </section>
+
+        <section class="card" aria-labelledby="comments-title">
+          <div class="card-header"><h2 id="comments-title">Comments ({{ comments().length }})</h2></div>
+          <div class="comments">
+            @for (c of comments(); track c.id) {
+              <article class="comment">
+                <app-avatar [name]="c.userName" />
+                <div class="comment-body">
+                  <div class="row row-wrap">
+                    <strong>{{ c.userName }}</strong>
+                    <app-role-badge [role]="c.userRole" />
+                    <span class="muted small">{{ c.createdAt | date: 'MMM d, y, h:mm a' }}{{ c.updatedAt ? ' · edited' : '' }}</span>
+                    <span class="spacer"></span>
+                    @if (c.userId === auth.user()?.id && editingCommentId() !== c.id) {
+                      <button type="button" class="icon-btn" (click)="startEdit(c)" aria-label="Edit comment"><app-icon name="edit" [size]="15" /></button>
+                    }
+                    @if (canDeleteComment(c)) {
+                      <button type="button" class="icon-btn danger" (click)="deleteComment(c)" aria-label="Delete comment"><app-icon name="trash" [size]="15" /></button>
+                    }
+                  </div>
+                  @if (editingCommentId() === c.id) {
+                    <textarea class="textarea" rows="3" [ngModel]="editText()" (ngModelChange)="editText.set($event)" aria-label="Edit comment" maxlength="2000"></textarea>
+                    <div class="row" style="justify-content:flex-end;margin-top:6px">
+                      <button type="button" class="btn btn-ghost btn-sm" (click)="editingCommentId.set(null)">Cancel</button>
+                      <button type="button" class="btn btn-primary btn-sm" (click)="saveEdit(c)">Save</button>
+                    </div>
+                  } @else {
+                    <p class="comment-text">{{ c.content }}</p>
+                  }
+                </div>
+              </article>
+            } @empty {
+              <p class="empty small">No comments yet. Start the conversation.</p>
+            }
+          </div>
+          <form class="comment-form" (ngSubmit)="postComment()">
+            <label for="new-comment" class="sr-only">Add a comment</label>
+            <textarea id="new-comment" name="comment" class="textarea" rows="3" placeholder="Write a comment…" maxlength="2000"
+                      [ngModel]="newComment()" (ngModelChange)="newComment.set($event)"
+                      (keydown.control.enter)="postComment()"></textarea>
+            <div class="row">
+              <span class="hint">Ctrl + Enter to send</span>
+              <span class="spacer"></span>
+              <button type="submit" class="btn btn-primary btn-sm" [disabled]="!newComment().trim() || posting()">
+                <app-icon name="send" [size]="14" /> Comment
+              </button>
+            </div>
+          </form>
+        </section>
+      </div>
+
+      <aside class="card card-body meta" aria-label="Task details">
+        <dl>
+          <dt>Assignee</dt>
+          <dd>
+            @if (t.assignedToName) { <span class="row"><app-avatar [name]="t.assignedToName" [small]="true" /> {{ t.assignedToName }}</span> }
+            @else { <span class="muted">Unassigned</span> }
+          </dd>
+          <dt>Team</dt>
+          <dd>
+            @if (t.teamId) { <a [routerLink]="['/teams', t.teamId]">{{ t.teamName }}</a> } @else { <span class="muted">—</span> }
+          </dd>
+          <dt>Due date</dt>
+          <dd [class.text-danger]="t.isOverdue">{{ t.dueDate ? (t.dueDate | date: 'EEEE, MMM d, y' : 'UTC') : '—' }}</dd>
+          <dt>Created by</dt>
+          <dd>{{ t.createdByName }}</dd>
+          <dt>Created</dt>
+          <dd>{{ t.createdAt | date: 'MMM d, y, h:mm a' }}</dd>
+          @if (t.updatedAt) { <dt>Last updated</dt><dd>{{ t.updatedAt | date: 'MMM d, y, h:mm a' }}</dd> }
+          @if (t.completedAt) { <dt>Completed</dt><dd>{{ t.completedAt | date: 'MMM d, y, h:mm a' }}</dd> }
+        </dl>
+      </aside>
+    </div>
+
+    @if (editing()) {
+      <app-task-form [task]="t" (saved)="onSaved($event)" (cancelled)="editing.set(false)" />
+    }
+  } @else if (notFound()) {
+    <div class="card empty">
+      <h3>Task unavailable</h3>
+      <p>It may have been deleted, or you don't have access to it.</p>
+    </div>
+  } @else {
+    <div class="spinner" role="status" aria-label="Loading task"></div>
+  }
+</div>

@@ -1,0 +1,86 @@
+<a class="skip-link" href="#main">Skip to content</a>
+
+<div class="shell">
+  <aside class="sidebar" [class.open]="sidebarOpen()" aria-label="Main navigation">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"><app-icon name="check" [size]="16" /></span>
+      <span>TaskFlow</span>
+    </div>
+
+    <nav>
+      @for (item of navItems(); track item.path) {
+        <a [routerLink]="item.path" routerLinkActive="active" class="nav-link">
+          <app-icon [name]="item.icon" />
+          <span>{{ item.label }}</span>
+          @if (item.path === '/notifications' && store.unread() > 0) {
+            <span class="nav-count" aria-label="unread">{{ store.unread() }}</span>
+          }
+        </a>
+      }
+    </nav>
+
+    <div class="sidebar-footer">
+      <a routerLink="/profile" routerLinkActive="active" class="me">
+        <app-avatar [name]="auth.user()?.fullName" />
+        <span class="me-text">
+          <span class="truncate me-name">{{ auth.user()?.fullName }}</span>
+          @if (auth.role(); as role) { <app-role-badge [role]="role" /> }
+        </span>
+      </a>
+      <button type="button" class="btn btn-ghost btn-block logout" (click)="auth.logout()">
+        <app-icon name="logout" /> Sign out
+      </button>
+    </div>
+  </aside>
+
+  @if (sidebarOpen()) {
+    <div class="scrim" (click)="sidebarOpen.set(false)" aria-hidden="true"></div>
+  }
+
+  <div class="main">
+    <header class="topbar">
+      <button type="button" class="icon-btn menu-btn" (click)="sidebarOpen.set(!sidebarOpen())"
+              [attr.aria-expanded]="sidebarOpen()" aria-label="Toggle navigation">
+        <app-icon name="menu" />
+      </button>
+      <span class="spacer"></span>
+
+      <div class="bell-wrap">
+        <button type="button" class="icon-btn bell" (click)="toggleBell($event)" [attr.aria-expanded]="bellOpen()"
+                [attr.aria-label]="'Notifications, ' + store.unread() + ' unread'">
+          <app-icon name="bell" [size]="20" />
+          @if (store.unread() > 0) {
+            <span class="bell-count">{{ store.unread() > 9 ? '9+' : store.unread() }}</span>
+          }
+        </button>
+
+        @if (bellOpen()) {
+          <div class="dropdown card" (click)="$event.stopPropagation()" role="menu">
+            <div class="dropdown-head">
+              <h3>Notifications</h3>
+              @if (store.unread() > 0) {
+                <button type="button" class="btn btn-ghost btn-sm" (click)="markAllRead()">Mark all read</button>
+              }
+            </div>
+            @for (n of recent(); track n.id) {
+              <button type="button" class="notif" [class.unread]="!n.isRead" (click)="openNotification(n)" role="menuitem">
+                <strong>{{ n.title }}</strong>
+                <span class="notif-msg">{{ n.message }}</span>
+                <span class="small muted">{{ n.createdAt | date: 'MMM d, h:mm a' }}</span>
+              </button>
+            } @empty {
+              <p class="empty small">You're all caught up.</p>
+            }
+            <a routerLink="/notifications" class="dropdown-foot">View all</a>
+          </div>
+        }
+      </div>
+
+      <app-avatar [name]="auth.user()?.fullName" [small]="true" />
+    </header>
+
+    <main id="main" tabindex="-1">
+      <router-outlet />
+    </main>
+  </div>
+</div>

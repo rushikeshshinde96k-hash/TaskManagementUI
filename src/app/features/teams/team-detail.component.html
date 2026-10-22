@@ -1,0 +1,109 @@
+<div class="page">
+  <a routerLink="/teams" class="back"><app-icon name="arrowLeft" [size]="16" /> Back to teams</a>
+
+  @if (team(); as t) {
+    <section class="card card-body" style="margin-bottom:16px">
+      <div class="page-header" style="margin-bottom:0">
+        <div>
+          <h1>{{ t.name }}</h1>
+          <p>{{ t.description || 'No description.' }}</p>
+        </div>
+        <div class="row row-wrap">
+          <a class="btn" routerLink="/tasks" [queryParams]="{ teamId: t.id }"><app-icon name="tasks" [size]="16" /> Team tasks</a>
+          @if (auth.isAdmin()) {
+            <button type="button" class="btn" (click)="editing.set(true)"><app-icon name="edit" [size]="16" /> Edit</button>
+            <button type="button" class="icon-btn danger" (click)="deleteTeam()" aria-label="Delete team"><app-icon name="trash" /></button>
+          }
+        </div>
+      </div>
+      <div class="stats">
+        <div><span class="label">Manager</span><div class="row" style="margin-top:4px"><app-avatar [name]="t.managerName ?? '?'" [small]="true" /> {{ t.managerName ?? 'No manager' }}</div></div>
+        <div><span class="label">Members</span><div style="margin-top:4px"><strong>{{ t.memberCount }}</strong></div></div>
+        <div><span class="label">Tasks</span><div style="margin-top:4px"><strong>{{ t.taskCount }}</strong></div></div>
+        <div><span class="label">Created</span><div style="margin-top:4px">{{ t.createdAt | date: 'MMM d, y' }}</div></div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="members-title">
+      <div class="card-header">
+        <h2 id="members-title">Members</h2>
+        @if (canManageMembers()) {
+          <button type="button" class="btn btn-primary btn-sm" (click)="openAdd()"><app-icon name="plus" [size]="16" /> Add members</button>
+        }
+      </div>
+      @if (t.members.length) {
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+                <th scope="col" class="hide-sm">Email</th>
+                <th scope="col">Role</th>
+                <th scope="col" class="hide-sm">Joined</th>
+                @if (canManageMembers()) { <th scope="col"><span class="sr-only">Actions</span></th> }
+              </tr>
+            </thead>
+            <tbody>
+              @for (m of t.members; track m.userId) {
+                <tr>
+                  <td><span class="row"><app-avatar [name]="m.fullName" [small]="true" /> {{ m.fullName }}</span></td>
+                  <td class="hide-sm muted">{{ m.email }}</td>
+                  <td><app-role-badge [role]="m.role" /></td>
+                  <td class="hide-sm muted">{{ m.joinedAt | date: 'MMM d, y' }}</td>
+                  @if (canManageMembers()) {
+                    <td style="text-align:right">
+                      <button type="button" class="icon-btn danger" (click)="removeMember(m)" [attr.aria-label]="'Remove ' + m.fullName">
+                        <app-icon name="trash" [size]="16" />
+                      </button>
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <div class="empty"><h3>No members yet</h3><p>{{ canManageMembers() ? 'Add users so you can assign them tasks.' : '' }}</p></div>
+      }
+    </section>
+
+    @if (editing()) {
+      <app-team-form [team]="t" (saved)="onSaved($event)" (cancelled)="editing.set(false)" />
+    }
+
+    @if (adding()) {
+      <app-modal title="Add members" (closed)="adding.set(false)">
+        <div class="stack">
+          <input class="input" placeholder="Search by name or email" aria-label="Search users"
+                 [value]="search()" (input)="search.set($any($event.target).value)" />
+          <div class="pick-list" role="group" aria-label="Users">
+            @for (u of filteredCandidates(); track u.id) {
+              <label class="pick">
+                <input type="checkbox" [checked]="selected().has(u.id)" (change)="toggle(u.id, $any($event.target).checked)" />
+                <app-avatar [name]="u.fullName" [small]="true" />
+                <span class="stack-tight" style="display:flex;flex-direction:column;min-width:0">
+                  <strong class="truncate">{{ u.fullName }}</strong>
+                  <span class="small muted truncate">{{ u.email }}</span>
+                </span>
+                <span class="spacer"></span>
+                <app-role-badge [role]="u.role" />
+              </label>
+            } @empty {
+              <p class="empty small">No more users available to add.</p>
+            }
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-ghost" (click)="adding.set(false)">Cancel</button>
+            <button type="button" class="btn btn-primary" [disabled]="selected().size === 0" (click)="addSelected()">
+              Add {{ selected().size || '' }} member{{ selected().size === 1 ? '' : 's' }}
+            </button>
+          </div>
+        </div>
+      </app-modal>
+    }
+  } @else if (notFound()) {
+    <div class="card empty"><h3>Team unavailable</h3><p>It may have been deleted, or you are not a member.</p></div>
+  } @else {
+    <div class="spinner" role="status" aria-label="Loading team"></div>
+  }
+</div>

@@ -1,0 +1,147 @@
+<div class="page">
+  <div class="page-header">
+    <div>
+      <h1>Tasks</h1>
+      <p>{{ auth.canManageTasks() ? 'Create, assign and track work across your teams.' : 'Tasks assigned to you.' }}</p>
+    </div>
+    @if (auth.canManageTasks()) {
+      <button type="button" class="btn btn-primary" (click)="showForm.set(true)"><app-icon name="plus" /> New task</button>
+    }
+  </div>
+
+  <section class="card" aria-label="Task filters" style="margin-bottom:12px">
+    <app-task-filters [value]="initialFilter" [teams]="teams()" [assignees]="assignees()" [showSearch]="true" (changed)="onFilter($event)" />
+  </section>
+
+  <div class="toolbar">
+    <div class="segmented" role="group" aria-label="View">
+      <button type="button" [attr.aria-pressed]="view() === 'list'" (click)="setView('list')"><app-icon name="list" [size]="16" /> List</button>
+      <button type="button" [attr.aria-pressed]="view() === 'board'" (click)="setView('board')"><app-icon name="board" [size]="16" /> Board</button>
+    </div>
+    @if (auth.canManageTasks()) {
+      <label class="checkbox">
+        <input type="checkbox" [checked]="!!filter().assignedToMe" (change)="toggleMine($any($event.target).checked)" /> Assigned to me
+      </label>
+    }
+    <span class="spacer"></span>
+    <label class="row sort">
+      <span class="label">Sort</span>
+      <select class="select" [ngModel]="sortValue()" (ngModelChange)="setSort($event)" aria-label="Sort tasks">
+        <option value="createdAt:desc">Newest first</option>
+        <option value="createdAt:asc">Oldest first</option>
+        <option value="dueDate:asc">Due date (soonest)</option>
+        <option value="dueDate:desc">Due date (latest)</option>
+        <option value="priority:desc">Priority (highest)</option>
+        <option value="priority:asc">Priority (lowest)</option>
+        <option value="title:asc">Title A–Z</option>
+      </select>
+    </label>
+  </div>
+
+  @if (result(); as r) {
+    @if (view() === 'list') {
+      <div class="card" [class.dim]="loading()">
+        @if (r.items.length) {
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th scope="col">Task</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Priority</th>
+                  <th scope="col">Due</th>
+                  <th scope="col" class="hide-sm">Assignee</th>
+                  <th scope="col" class="hide-sm">Team</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (t of r.items; track t.id) {
+                  <tr class="clickable" (click)="router.navigate(['/tasks', t.id])">
+                    <td class="title-cell">
+                      <a [routerLink]="['/tasks', t.id]" (click)="$event.stopPropagation()">{{ t.title }}</a>
+                      @if (t.commentCount) {
+                        <span class="muted small comments"><app-icon name="comment" [size]="12" /> {{ t.commentCount }}</span>
+                      }
+                    </td>
+                    <td (click)="$event.stopPropagation()">
+                      @if (canChange(t)) {
+                        <select class="select status-select" [ngModel]="t.status" (ngModelChange)="changeStatus(t, $event)"
+                                [attr.aria-label]="'Status of ' + t.title">
+                          @for (s of statuses; track s.value) { <option [ngValue]="s.value">{{ s.label }}</option> }
+                        </select>
+                      } @else {
+                        <app-status-badge [status]="t.status" />
+                      }
+                    </td>
+                    <td><app-priority-badge [priority]="t.priority" /></td>
+                    <td class="nowrap">
+                      @if (t.dueDate) {
+                        <span [class.text-danger]="t.isOverdue">{{ t.dueDate | date: 'MMM d, y' : 'UTC' }}</span>
+                        @if (t.isOverdue) { <span class="badge badge-overdue">Overdue</span> }
+                      } @else { <span class="muted">—</span> }
+                    </td>
+                    <td class="hide-sm">
+                      @if (t.assignedToName) {
+                        <span class="row"><app-avatar [name]="t.assignedToName" [small]="true" /> {{ t.assignedToName }}</span>
+                      } @else { <span class="muted">Unassigned</span> }
+                    </td>
+                    <td class="hide-sm">{{ t.teamName ?? '—' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <app-pagination [page]="r.page" [totalPages]="r.totalPages" [totalCount]="r.totalCount" (pageChange)="goToPage($event)" />
+        } @else {
+          <div class="empty">
+            <h3>No tasks found</h3>
+            <p>{{ auth.canManageTasks() ? 'Adjust the filters or create a new task.' : 'Nothing is assigned to you with these filters.' }}</p>
+          </div>
+        }
+      </div>
+    } @else {
+      <div class="board" [class.dim]="loading()">
+        @for (col of columns(); track col.value) {
+          <section class="column" [attr.aria-label]="col.label">
+            <header class="column-head">
+              <app-status-badge [status]="col.value" />
+              <span class="muted">{{ col.tasks.length }}</span>
+            </header>
+            @for (t of col.tasks; track t.id) {
+              <article class="card task-card">
+                <a [routerLink]="['/tasks', t.id]" class="task-card-title">{{ t.title }}</a>
+                <div class="row row-wrap">
+                  <app-priority-badge [priority]="t.priority" />
+                  @if (t.dueDate) {
+                    <span class="badge" [class.badge-overdue]="t.isOverdue"><app-icon name="calendar" [size]="12" />{{ t.dueDate | date: 'MMM d' : 'UTC' }}</span>
+                  }
+                </div>
+                <div class="row task-card-foot">
+                  <app-avatar [name]="t.assignedToName ?? '?'" [small]="true" />
+                  <span class="small muted truncate">{{ t.assignedToName ?? 'Unassigned' }}</span>
+                  <span class="spacer"></span>
+                  @if (canChange(t)) {
+                    <select class="select select-sm" [ngModel]="t.status" (ngModelChange)="changeStatus(t, $event)" [attr.aria-label]="'Move ' + t.title">
+                      @for (s of statuses; track s.value) { <option [ngValue]="s.value">{{ s.label }}</option> }
+                    </select>
+                  }
+                </div>
+              </article>
+            } @empty {
+              <p class="muted small empty-col">No tasks</p>
+            }
+          </section>
+        }
+      </div>
+      @if (r.totalCount > r.items.length) {
+        <p class="muted small" style="margin-top:8px">Showing the first {{ r.items.length }} of {{ r.totalCount }} tasks. Narrow the filters to see more.</p>
+      }
+    }
+  } @else if (loading()) {
+    <div class="spinner" role="status" aria-label="Loading tasks"></div>
+  }
+</div>
+
+@if (showForm()) {
+  <app-task-form (saved)="onSaved($event)" (cancelled)="showForm.set(false)" />
+}
